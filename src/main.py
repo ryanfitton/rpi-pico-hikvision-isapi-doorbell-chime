@@ -97,7 +97,7 @@ I2S_buffer_length_in_bytes = 5000
 # =====================================================
 def initWiFi():
  wlan = network.WLAN(network.STA_IF)    # Create an object
- wlan.active(True)    # Turn on the Raspberry Pi Pico W’s Wi-Fi
+ wlan.active(True)                    # Turn on the Raspberry Pi Pico W’s Wi-Fi
  wlan.connect(ssid, ssid_password)    # Connect to your router using the SSID and PASSWORD
  
  # Wait for connection or failure
@@ -114,7 +114,9 @@ def initWiFi():
  
  # Handle connection errors
  if wlan.status() != 3:
-    raise RuntimeError('Network connection failed')
+    raise Exception('Network connection failed')
+
+    return False
 
  # If connected
  else:
@@ -492,67 +494,16 @@ def playSound(wav_file):
 
 # Main Code Function
 def main():
- # -----------------------------
- # Try-Catch with `initWiFi` 
- # -----------------------------
  try:
-    initWiFi();
-
- except Exception as e:
-    #Debugging
-    logger('Runtime Error encountered:')
-    logger(e)
-
-    logger('Restarting again')
-
-    # Start `main` function
-    main()
-
-
- # -----------------------------
- # Try-Catch with main logic
- # -----------------------------
- try:
-    
     # Loop
     while True:
 
         # Interval between each request - trying to same some bandwidth and network traffic
-        time.sleep(2);
-
-        # Check call status
-        logger("Checking call status")
-
-        # Get the current call status
-        current_callstatus = callStatus()
-
-        # If call status is 'ring'
-        if current_callstatus == 'ring':
-            logger("Call status is 'ring'")
-
-            # Pin modifiers from machine
-            from machine import Pin
-            led = machine.Pin('LED', machine.Pin.OUT)   # The LED Pin - This is the internal Pico LED
-            
-            # Turn on the LED
-            led.on()
-
-            # Play 'ding dong'
-            logger("Playing 'Ding Dong'")
-            playSound(doorbell_sound)
-
-            # Wait 3 seconds before playing 'ding dong' again
-            logger("Waiting 3 seconds")
-            time.sleep(2);
-
-            # Play 'ding dong'
-            logger("Playing 'Ding Dong'")
-            playSound(doorbell_sound)
-
-            # Check if call status is still 'ring' after another 12 seconds
-            logger("Waiting 12 seconds until checking the call status again")
-            time.sleep(12);
-
+        time.sleep(3);
+        
+        # If connected to WiFi without issues, then continue
+        if initWiFi():
+        
             # Check call status
             logger("Checking call status")
 
@@ -561,37 +512,75 @@ def main():
 
             # If call status is 'ring'
             if current_callstatus == 'ring':
-                logger("Call status is 'ring'")
+                  logger("Call status is 'ring'")
 
-                # Hangup call
-                logger("Hanging up call...")
-                hangup = callHangup()
+                  # Pin modifiers from machine
+                  from machine import Pin
+                  led = machine.Pin('LED', machine.Pin.OUT)   # The LED Pin - This is the internal Pico LED
+                  
+                  # Turn on the LED
+                  led.on()
 
-                if hangup == True:
-                    logger("Call has ended")
-                else:
-                    logger("Error ending call")
+                  # Play 'ding dong'
+                  logger("Playing 'Ding Dong'")
+                  playSound(doorbell_sound)
 
+                  # Wait 3 seconds before playing 'ding dong' again
+                  logger("Waiting 3 seconds")
+                  time.sleep(2);
+
+                  # Play 'ding dong'
+                  logger("Playing 'Ding Dong'")
+                  playSound(doorbell_sound)
+
+                  # Check if call status is still 'ring' after another 12 seconds
+                  logger("Waiting 12 seconds until checking the call status again")
+                  time.sleep(12);
+
+                  # Check call status
+                  logger("Checking call status")
+
+                  # Get the current call status
+                  current_callstatus = callStatus()
+
+                  # If call status is 'ring'
+                  if current_callstatus == 'ring':
+                        logger("Call status is 'ring'")
+
+                        # Hangup call
+                        logger("Hanging up call...")
+                        hangup = callHangup()
+
+                        if hangup == True:
+                              logger("Call has ended")
+                        else:
+                              logger("Error ending call")
+
+                  else:
+                        logger("Call status is not 'ring'")
+
+                  # Turn off the LED
+                  led.off()
+
+
+            # If call status is 'idle'
+            elif current_callstatus == 'idle':
+                  logger("Doorbell status is 'idle'")
+
+
+            # If call status is 'onCall'
+            elif current_callstatus == 'onCall':
+                  logger("Doorbell status is 'onCall'")
+
+
+            # Anything else, not covered. There shouldn't be any thing else
             else:
-                logger("Call status is not 'ring'")
-
-            # Turn off the LED
-            led.off()
-
-
-        # If call status is 'idle'
-        elif current_callstatus == 'idle':
-            logger("Doorbell status is 'idle'")
-
-
-        # If call status is 'onCall'
-        elif current_callstatus == 'onCall':
-            logger("Doorbell status is 'onCall'")
-
-
-        # Anything else, not covered. There shouldn't be any thing else
+                  logger("Doorbell status is unknown")
+        
+        
+        # Error with WiFi connection
         else:
-            logger("Doorbell status is unknown")
+            logger("Error with WiFi connection")
 
         # Run Garbage Collection
         gc.collect()
