@@ -1,17 +1,7 @@
 # coding: utf-8
-# CircuitPython Libaries:
-#import network                          #CircuitPython default lib - WiFi on built in model not yet supported
-#import adafruit_requests as requests    #From `adafruit_requests.py` lib on local file system
-#import json                             #CircuitPython default lib
-#import random                           #CircuitPython default lib
-#import  re                              #CircuitPython default lib
-#import binascii                         #CircuitPython default lib
-#from binascii import a2b_base64         #Decode - CircuitPython default lib
-#from binascii import b2a_base64         #Encode - CircuitPython default lib
-
-#MicroPython Libaries
 import network                          #Micropython default lib
 import urequests as requests            #Micropython default lib
+import uping as ping                    #Micropython default lib
 import ujson as json                    #Micropython default lib
 import urandom as random                #Micropython default lib
 import ure as re                        #Micropython default lib
@@ -22,8 +12,13 @@ from ubinascii import b2a_base64        #Encode - Micropython default lib
 import time                             #Micropython default lib
 import md5                              #From `lib/md5.py` lib on local file system
 import os                               #Micropython default lib
+import utime
+import ntptime
 from machine import I2S                 #Micropython default lib
+from machine import WDT                 #Micropython default lib
+#from machine import RTC                #Micropython default lib
 from machine import Pin                 #Micropython default lib
+from machine import WDT                 #Micropython default lib
 import gc                               #Micropython default lib
 
 
@@ -54,12 +49,13 @@ ssid_password = ""                                  #WiFi network password
 #Doorbell API Configuration
 api_username="admin"                                #Doorbell Admin user
 api_password=""                                     #Doorbell Admin user's password
-host="http://xx.xx.xx.xx"                           #The Doorbell - Highly recommended to setup static DHCP mappings for this device on your router
+host=""                                             #The Doorbell - Highly recommended to setup static DHCP mappings for this device on your router
+protocol="http://"                                  #Protocol to be used, usually 'http://'
 api_base="/ISAPI/VideoIntercom/"                    #URL Base for Doorbell API
 
 #WAV Audio File Configuration
 #8000Hz, 16-Bit PCM
-wifi_connected_sound="wifi-connected.wav"
+wifi_connected_sound="wifi-connected.wav"           #Function to play sound is currently commented out below
 
 #doorbell_sound="doorbell.wav"
 #doorbell_sound="doorbell-loud.wav"
@@ -87,15 +83,33 @@ I2S_sd_pin = 9      #Serial data output
 I2S_id = 0
 I2S_buffer_length_in_bytes = 5000
 
+# Pin modifiers from machine
+led = machine.Pin('LED', machine.Pin.OUT)   # The LED Pin - This is the internal Pico LED
+
+
+
+# Start Watchdog
+# =====================================================
+wdt = WDT(timeout=8388)  # enable it with a timeout of 2s
+
 
 
 ######################################################
 # Functions
 ######################################################
 
+# Watchdog Feed
+# =====================================================
+def feedWatchdog():
+ # Feed the watchdog to prevent system from halting
+ wdt.feed()
+
+
 # Initialise WiFi
 # =====================================================
 def initWiFi():
+ feedWatchdog() # Feed Watchdog
+
  wlan = network.WLAN(network.STA_IF)    # Create an object
  wlan.active(True)                    # Turn on the Raspberry Pi Pico W’s Wi-Fi
  wlan.connect(ssid, ssid_password)    # Connect to your router using the SSID and PASSWORD
@@ -103,6 +117,8 @@ def initWiFi():
  # Wait for connection or failure
  max_wait = 10
  while max_wait > 0:
+    feedWatchdog() # Feed Watchdog
+ 
     if wlan.status() < 0 or wlan.status() >= 3:
         break
     max_wait -= 1
@@ -110,16 +126,24 @@ def initWiFi():
     #Debugging
     logger('Connecting to WiFi...')
 
+    feedWatchdog() # Feed Watchdog
+
     time.sleep(1)
+
+    feedWatchdog() # Feed Watchdog
  
  # Handle connection errors
  if wlan.status() != 3:
+    feedWatchdog() # Feed Watchdog
+
     raise Exception('Network connection failed')
 
     return False
 
  # If connected
  else:
+    feedWatchdog() # Feed Watchdog
+
     #Debugging
     logger('WiFi is connected')
     
@@ -136,9 +160,32 @@ def initWiFi():
     return True
 
 
+# WiFi Connected Notification
+# =====================================================
+def wifiConnectedNotify():
+ feedWatchdog() # Feed Watchdog
+
+ logger("WiFi is connected")
+ 
+ # Play sound
+ #playSound(wifi_connected_sound)
+
+ # Flash the LED
+ for i in range(20):
+    feedWatchdog() # Feed Watchdog
+    
+    led.on()
+    time.sleep(0.1)
+    
+    led.off()
+    time.sleep(0.1)
+
+
 # Message logger - Mainly for debugging
 # =====================================================
 def logger(message):
+    feedWatchdog() # Feed Watchdog
+
     print(message)
 
 
@@ -244,8 +291,10 @@ class DigestAuthorization:
 # Call status
 # =====================================================
 def callStatus():
+ feedWatchdog() # Feed Watchdog
+
  # Construct API url
- url = host + api_base + "callStatus?format=json"
+ url = protocol + host + api_base + "callStatus?format=json"
 
  #Set the HTTP method
  method = 'GET'
@@ -259,12 +308,18 @@ def callStatus():
  #payload = json.dumps({"data": "test authentication"})
  payload = '' #EMPTY - no payload required
 
+ feedWatchdog() # Feed Watchdog
+
  #Generate logins/authorisations for `basic` or `digest` auth
  basic_credentials = gen_basic_credential(api_username, api_password)
  auth = DigestAuthorization(api_username, api_password)
 
+ feedWatchdog() # Feed Watchdog
+
  #Make the first request - Identify if `basic` or `digest` auth
  r1st = requests.request(method, url, headers=headers, data=payload)
+
+ feedWatchdog() # Feed Watchdog
 
  #Store details from the request to variables
  _body = r1st.text
@@ -274,6 +329,8 @@ def callStatus():
  #Debugging
  #logger([_status, _headers, _body])
 
+ feedWatchdog() # Feed Watchdog
+ 
  # Check the returned status from the request and provide authorisations
  if _status in [401, 407]:
     server_mode = {
@@ -283,9 +340,13 @@ def callStatus():
             'credentials': 'proxy-authorization'}
     }
     
+    feedWatchdog() # Feed Watchdog
+    
     #Get the challenge item 'WWW-Authenticate' or 'proxy-authenticate' header
     foundServer_mode = server_mode[_status]['challenge']
     challenge = _headers[foundServer_mode]
+
+    feedWatchdog() # Feed Watchdog
     
     #Parse to return if 'Basic' or 'Digest'
     scheme = parse_scheme(challenge)
@@ -299,6 +360,8 @@ def callStatus():
     # If `digest` authorisation
     if scheme == 'Digest':
         credentials = auth.authorize(method, url, challenge, payload) #from `auth = DigestAuthorization`
+
+    feedWatchdog() # Feed Watchdog
     
     # Set the `credentials` headers
     headers[server_mode[_status]['credentials']] = credentials
@@ -306,6 +369,7 @@ def callStatus():
     #Debugging
     #logger(credentials)
 
+    feedWatchdog() # Feed Watchdog
 
     #Make the second request
     r2nd = requests.request(method, url, headers=headers, data=payload)
@@ -314,6 +378,8 @@ def callStatus():
     _body = r2nd
     _status = r2nd.status_code
     _headers = r2nd.headers
+
+    feedWatchdog() # Feed Watchdog
 
     #Debugging
     #logger([r2nd.status_code, r2nd.headers, r2nd.text])
@@ -333,15 +399,19 @@ def callStatus():
     # Use `data` as the variable to return
     data = _body.json()
 
+    feedWatchdog() # Feed Watchdog
+
  # Return the Call Status from `data`
  return data["CallStatus"]["status"]
 
 
 # Call hangup
-def callHangup():
 # =====================================================
+def callHangup():
+ feedWatchdog() # Feed Watchdog
+
  # Construct API url
- url = host + api_base + "callSignal?format=json"
+ url = protocol + host + api_base + "callSignal?format=json"
 
  #Set the HTTP method
  method = 'PUT' # Using `PUT` instead of `POST`
@@ -427,6 +497,8 @@ def callHangup():
 
     # Use `data` as the variable to return
     data = _body.json()
+
+    feedWatchdog() # Feed Watchdog
  
  # Return basedon status
  if data["statusString"] == "OK": 
@@ -436,8 +508,10 @@ def callHangup():
 
 
 # Play Sounds - Pass a WAV filename
-def playSound(wav_file):
 # =====================================================
+def playSound(wav_file):
+ feedWatchdog() # Feed Watchdog
+
  audio_out = I2S(
     I2S_id,
     sck=Pin(I2S_sck_pin),   #Serial clock output
@@ -464,6 +538,8 @@ def playSound(wav_file):
  # Read audio samples from the WAV file
  # and write them to an I2S DAC
  while True:
+    feedWatchdog() # Feed Watchdog
+
     try:
         num_read = wav.readinto(wav_samples_mv)
 
@@ -477,6 +553,8 @@ def playSound(wav_file):
            _ = audio_out.write(wav_samples_mv[:num_read])
     
     except (KeyboardInterrupt, Exception) as e:
+        feedWatchdog() # Feed Watchdog
+
         logger('caught exception {} {}'.format(type(e).__name__, e))
         
         break
@@ -494,117 +572,287 @@ def playSound(wav_file):
 
 # Main Code Function
 def main():
- try:
-    # Loop
-    while True:
+ feedWatchdog() # Feed Watchdog
 
-        # Interval between each request - trying to same some bandwidth and network traffic
-        time.sleep(3);
+ # Turn on the LED
+ led.on()
+ 
+ # Run Wifi Connection at startup
+ # =====================================================
+
+ # If connected to WiFi without issues, then continue
+ if initWiFi():
+    feedWatchdog() # Feed Watchdog
+
+    # WiFi is connected - Send a notification to the user
+    wifiConnectedNotify()
+
+
+    # Check doorbell is available on the network
+    # pingDevice = ping.ping(host, count=4, timeout=2500, interval=10, quiet=True, size=64)
+            
+    # If any value from Ping is zero, usually the second will show this.
+    # First: n_trans - ping attempts
+    # Second: n_recv - packets recieved
+    # for pingValue in pingDevice:
+    #    if pingValue == 0:
+    #        logger('Ping (ICMP) packets have not been recieved. It appears the device is offline.')
+    #    
+    #    else:
+    #        logger('Ping (ICMP) packets have been recieved. It appears the device is online.')
+    
+    
+
+    # Start logic function
+    # =====================================================
+    logger("Starting logic function")
+    
+    def logic():
+     feedWatchdog() # Feed Watchdog
+
+     # Turn off the LED
+     led.off()
+
+     logger("Running")
+    
+     # Try code and capture any Keyboard Interrupts or Exceptions
+     try:
+        feedWatchdog() # Feed Watchdog
         
-        # If connected to WiFi without issues, then continue
-        if initWiFi():
+        # Variables
+        # =====================================================
+        initialTicks = utime.ticks_ms()
+     
+        WiFiInterval = 600000 #Check the Wifi every: Milliseconds - 600000 = 10 minutes
+        WiFiNowTicks = initialTicks
+        WiFiNowTicksDeadline = 0
+     
+        CallStatusInterval = 2000 #Check the Doorbell Call Status every: Milliseconds - 2000 = 2 seconds
+        CallStatusNowTicks = initialTicks
+        CallStatusNowDeadline = 0
+
+        GarbageCollectionInterval = 600000 #Run the Garbage Collection every: Milliseconds - 600000 = 10 minutes
+        GarbageCollectionNowTicks = initialTicks
+        GarbageCollectionDeadline = 0
+
+        i = 0 # Loop counter
         
-            # Check call status
-            logger("Checking call status")
+        # Loop
+        while True:    
+            feedWatchdog() # Feed Watchdog
 
-            # Get the current call status
-            current_callstatus = callStatus()
+            time.sleep(1)
 
-            # If call status is 'ring'
-            if current_callstatus == 'ring':
-                  logger("Call status is 'ring'")
+            feedWatchdog() # Feed Watchdog
 
-                  # Pin modifiers from machine
-                  from machine import Pin
-                  led = machine.Pin('LED', machine.Pin.OUT)   # The LED Pin - This is the internal Pico LED
-                  
-                  # Turn on the LED
-                  led.on()
+            # Debugging
+            #logger("Loop:")
+            #logger(i)
 
-                  # Play 'ding dong'
-                  logger("Playing 'Ding Dong'")
-                  playSound(doorbell_sound)
 
-                  # Wait 3 seconds before playing 'ding dong' again
-                  logger("Waiting 3 seconds")
-                  time.sleep(2);
+            # Garbage Collection
+            # =====================================================
+            
+            # Set a deadline for of 20 seconds since inital script start
+            GarbageCollectionDeadline = utime.ticks_add(GarbageCollectionNowTicks, GarbageCollectionInterval)
 
-                  # Play 'ding dong'
-                  logger("Playing 'Ding Dong'")
-                  playSound(doorbell_sound)
+            # Current time is greater than deadline
+            if utime.ticks_ms() >= GarbageCollectionDeadline:
+                feedWatchdog() # Feed Watchdog
+                
+                #logger("GarbageCollectionDeadline dealine has been reached")
+                
+                # Run Garbage Collection
+                logger("Running Garbage Collection")
+                gc.collect()
+                logger("Finished Garbage Collection")
 
-                  # Check if call status is still 'ring' after another 12 seconds
-                  logger("Waiting 12 seconds until checking the call status again")
-                  time.sleep(12);
+                # Update the ticks with current ticks
+                GarbageCollectionNowTicks = utime.ticks_ms()
+            
 
-                  # Check call status
-                  logger("Checking call status")
+            
+            # WiFi Connection check
+            # =====================================================
+            
+            # Set a deadline for of 10 seconds since inital script start
+            WiFiDeadline = utime.ticks_add(WiFiNowTicks, WiFiInterval)
+            
+            # Current time is greater than deadline
+            if utime.ticks_ms() >= WiFiDeadline:
+                feedWatchdog() # Feed Watchdog
 
-                  # Get the current call status
-                  current_callstatus = callStatus()
+                #logger("WiFiDeadline has been reached")
+                
+                # Check WiFi connection
+                if initWiFi():
+                    feedWatchdog() # Feed Watchdog
 
-                  # If call status is 'ring'
-                  if current_callstatus == 'ring':
+                    # WiFi is connected
+                    ("WiFi is connected")
+                else:
+                    feedWatchdog() # Feed Watchdog
+
+                    # Error with WiFi connection
+                    logger("Error with WiFi connection")
+
+                    # Exception raised
+                    logger("Error with WiFi connection")
+                    raise Exception('Network connection failed')
+
+                feedWatchdog() # Feed Watchdog
+                
+                # Sleep for a few seconds to ensure network is fully ready
+                time.sleep(2)
+
+                feedWatchdog() # Feed Watchdog
+                
+                # Update the ticks with current ticks
+                WiFiNowTicks = utime.ticks_ms()
+
+
+
+            # Door bell call status check
+            # =====================================================
+            
+            # Set a deadline for of 5 seconds since inital script start
+            CallStatusDeadline = utime.ticks_add(CallStatusNowTicks, CallStatusInterval)
+            
+            # Current time is greater than deadline
+            if utime.ticks_ms() >= CallStatusDeadline:
+                feedWatchdog() # Feed Watchdog
+
+                #logger("CallStatusDeadline dealine has been reached")
+      
+                # If call status is 'ring'
+                if callStatus() == 'ring':
+                    feedWatchdog() # Feed Watchdog
+                    
+                    logger("Call status is 'ring'")
+                    
+                    # Turn on the LED
+                    led.on()
+
+                    # Play 'ding dong'
+                    logger("Playing 'Ding Dong'")
+                    playSound(doorbell_sound)
+                    
+                    logger("'Ding Dong' again in 3 seconds")
+                    
+                    feedWatchdog() # Feed Watchdog
+
+                    time.sleep(3)
+
+                    feedWatchdog() # Feed Watchdog
+                    
+                    # Play 'ding dong'
+                    logger("Playing 'Ding Dong'")
+                    playSound(doorbell_sound)
+
+                    feedWatchdog() # Feed Watchdog
+
+                    # Check if call status is still 'ring' after another 5 seconds
+                    logger("Waiting 5 seconds until checking the call status again")
+
+                    feedWatchdog() # Feed Watchdog
+                    
+                    time.sleep(5)
+                    
+                    # Check if call status is still 'ring' after another 5 seconds
+                    logger("Waiting another 5 seconds until checking the call status again")
+
+                    feedWatchdog() # Feed Watchdog
+                    
+                    time.sleep(5)
+                    
+                    # If call status is 'ring'
+                    if callStatus() == 'ring':
+                        feedWatchdog() # Feed Watchdog
+                        
                         logger("Call status is 'ring'")
 
-                        # Hangup call
+                        # Hangup call after 3 seconds
                         logger("Hanging up call...")
+                        time.sleep(3)
                         hangup = callHangup()
 
+                        feedWatchdog() # Feed Watchdog
+
                         if hangup == True:
-                              logger("Call has ended")
+                            logger("Call has ended")
                         else:
-                              logger("Error ending call")
+                            logger("Error ending call")
 
-                  else:
-                        logger("Call status is not 'ring'")
+                    # If call status is no longer 'ring'
+                    else:
+                        feedWatchdog() # Feed Watchdog
+                        
+                        logger("Call status is no longer 'ring'")
+                    
+                    # Turn off the LED
+                    led.off()
 
-                  # Turn off the LED
-                  led.off()
+                
+                # Update the ticks with current ticks
+                CallStatusNowTicks = utime.ticks_ms()
+
+                feedWatchdog() # Feed Watchdog
+            
+            
+            
+            # Increase counter by 1
+            i += 1
 
 
-            # If call status is 'idle'
-            elif current_callstatus == 'idle':
-                  logger("Doorbell status is 'idle'")
+
+     except KeyboardInterrupt:
+        feedWatchdog() # Feed Watchdog
+
+        # Debugging
+        logger('Keyboard interrupt')
+
+        # Cancel all calls after 3 seconds
+        logger('Cancelling all current calls')
+        time.sleep(3)
+        callHangup()
+
+        feedWatchdog() # Feed Watchdog
 
 
-            # If call status is 'onCall'
-            elif current_callstatus == 'onCall':
-                  logger("Doorbell status is 'onCall'")
-
-
-            # Anything else, not covered. There shouldn't be any thing else
-            else:
-                  logger("Doorbell status is unknown")
+     except Exception as e:
+        feedWatchdog() # Feed Watchdog
         
-        
-        # Error with WiFi connection
-        else:
-            logger("Error with WiFi connection")
+        # Debugging
+        logger('Exception encountered:')
+        logger(e)
+        #logger('{} | {}'.format(e, traceback.format_exc()))
 
-        # Run Garbage Collection
-        gc.collect()
+        logger('Restarting again')
+
+        feedWatchdog() # Feed Watchdog
+
+        # Retart `logic` function
+        logic()
+
+     
+    feedWatchdog() # Feed Watchdog
+    
+    # Start `logic` function
+    logic()
 
 
- except KeyboardInterrupt:
-    #Debugging
-    logger('Keyboard interrupt')
 
-    logger('Cancelling all current calls')
-    callHangup()
+ # Error with WiFi connection
+ else:
+    logger("Error with WiFi connection")
 
+    feedWatchdog() # Feed Watchdog
 
- except Exception as e:
-    #Debugging
-    logger('Exception encountered:')
-    logger(e)
-    #logger('{} | {}'.format(e, traceback.format_exc()))
-
-    logger('Restarting again')
-
-    # Start `main` function
+    # Restart `main` function
     main()
 
+
+feedWatchdog() # Feed Watchdog
 
 # Start `main` function
 main()
