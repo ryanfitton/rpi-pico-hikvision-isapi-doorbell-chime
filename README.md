@@ -13,6 +13,8 @@ Thonny IDE is used to upload the firmware and to copy over the src files. The fi
 
 This Python code is run and used to check the ring status of the Hikvision DS-KV6113-WPE1(B) doorbell when used in stand-alone mode. If this ring status is `ring` then the doorbell sound will be played twice. There is then a timeout until the ring status check is performed again.
 
+View my blog post for this project: https://ryanfitton.co.uk/blog/diy-doorbell-chime-for-hikvision-isapi-with-a-raspberry-pi-pico/
+
 
 ## Parts:
 
