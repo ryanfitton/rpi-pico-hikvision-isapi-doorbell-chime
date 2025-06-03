@@ -16,6 +16,26 @@ This Python code is run and used to check the ring status of the Hikvision DS-KV
 View my blog post for this project: https://ryanfitton.co.uk/blog/diy-doorbell-chime-for-hikvision-isapi-with-a-raspberry-pi-pico/
 
 
+## Getting started:
+
+To get started edit the config in `src/main.py` for the following fields:
+
+### WiFi Configuration:
+* `ssid` : WiFi network name
+* `ssid_password` : WiFi network password
+
+### Doorbell API Configuration:
+* `api_username` : Doorbell Admin user
+* `api_password` : Doorbell Admin user's password
+* `host` : The Doorbell's IP Address- Highly recommended to setup static DHCP mappings for this device on your router
+
+### Pushover Message API Configuration:
+* `use_pushover` : Enable/Disable Pushover functionality, set `true` or `false`. If true then also configure the below:
+* `pushover_token` : The Pushover APP token - Register on https://pushover.net/ to generate a token
+* `pushover_user` : The Pushover APP user or group key - Configure this on https://pushover.net/
+* `pushover_message` : Message for the doorbell message
+
+
 ## Parts:
 
 * RPI Pico Wireless with Headers
