@@ -11,6 +11,10 @@ Tested on MicroPython v1.19.1, you can download and setup MicroPython on the Pi 
 
 Thonny IDE is used to upload the firmware and to copy over the src files. The files from 'src' must be copied into the root directory on the Pi Pico.
 
+Download up to date firmware here:
+* Pico W (1st Gen): https://micropython.org/download/RPI_PICO_W/
+* Pico W (2nd Gen): https://micropython.org/download/RPI_PICO2_W/
+
 This Python code is run and used to check the ring status of the Hikvision DS-KV6113-WPE1(B) doorbell when used in stand-alone mode. If this ring status is `ring` then the doorbell sound will be played twice. There is then a timeout until the ring status check is performed again.
 
 View my blog post for this project: https://ryanfitton.co.uk/blog/diy-doorbell-chime-for-hikvision-isapi-with-a-raspberry-pi-pico/
@@ -56,12 +60,17 @@ You can run these curl commands on your computer to test the Hikvision DS-KV6113
 ### Get status:
 
 ```
-curl -i --digest -u admin:YOUR_PASSWORD http://YOUR_IP/ISAPI/VideoIntercom/callStatus?format=json
+curl -i --digest -u admin:YOUR_PASSWORD "http://YOUR_IP/ISAPI/VideoIntercom/callStatus?format=json"
 ```
 
 Shows either `idle`, `ring` or `onCall`
 
 ### Hangup a call:
 ```
-curl -i --digest -u admin:YOUR_PASSWORD  -d '{"CallSignal":{"cmdType":"hangUp"}}' -H "Content-Type: application/json" -X PUT http://YOUR_IP/ISAPI/VideoIntercom/callSignal?format=json
+curl -i --digest -u admin:YOUR_PASSWORD  -d '{"CallSignal":{"cmdType":"hangUp"}}' -H "Content-Type: application/json" -X PUT "http://YOUR_IP/ISAPI/VideoIntercom/callSignal?format=json"
+```
+
+### Get an image capture:
+```
+curl -i --digest -u admin:YOUR_PASSWORD "http://YOUR_IP/ISAPI/Streaming/channels/101/picture"
 ```

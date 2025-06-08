@@ -1,4 +1,5 @@
 # coding: utf-8
+import base64                           #From `lib/base64.py` lib on local file system
 import network                          #Micropython default lib
 import urequests as requests            #Micropython default lib
 import uping as ping                    #Micropython default lib
@@ -518,7 +519,7 @@ def imageCapture():
  feedWatchdog() # Feed Watchdog
 
  # Construct API url
- url = protocol + host + api_base_streaming + "channels/101/picture?videoResolutionWidth=1920&videoResolutionHeight=1080"
+ url = protocol + host + api_base_streaming + "channels/101/picture"
 
  #Set the HTTP method
  method = 'GET'
@@ -632,15 +633,15 @@ def imageCapture():
 
 # Send Pushover message
 # =====================================================
-def sendPushoverMessage(message, attachment_base64 = false, attachment_type = 'image/jpeg'):
+def sendPushoverMessage(message, attachment_base64 = False, attachment_type = 'image/jpeg'):
  feedWatchdog() # Feed Watchdog
 
  # Construct API url
  url = pushover_protocol + pushover_host + pushover_api_base_message
 
- #Set the HTTP method
+ # Set the HTTP method
  method = 'POST'
- 
+    
  # Headers
  headers = {
     'Content-Type': 'application/x-www-form-urlencoded'
@@ -655,27 +656,26 @@ def sendPushoverMessage(message, attachment_base64 = false, attachment_type = 'i
     "attachment_type": attachment_type
  }
 
+ # Convert payload dict to URL-encoded string
+ payload_str = "&".join(
+    "{}={}".format(k, str(v)) for k, v in payload.items() if v is not False
+ )
+
  feedWatchdog() # Feed Watchdog
 
- #Make the first request - Push to the Pushover API
- r1st = requests.request(method, url, headers=headers, data=payload)
+ # Make the first request - Push to the Pushover API
+ r1st = requests.request(method, url, headers=headers, data=payload_str)
 
  feedWatchdog() # Feed Watchdog
 
- #Store details from the request to variables
+ # Store details from the request to variables
  _status = r1st.status_code
-
- #Debugging
- #logger("Status code:")
- #logger("==============\n")
- #logger(_status)
 
  if _status == 200:
     data = "Pushover sent."
  else:
     data = "Pushover error."
 
- # Return the image embedded in the `data` variable
  return data
 
  
@@ -909,97 +909,95 @@ def main():
 
                     # Core 0 task - default
                     def core0_task():
-                        while True:
-                            logger("Running on Core 0 ****")
+                        logger("Running on Core 0 ****")
 
+                        feedWatchdog() # Feed Watchdog
+                        
+                        logger("Call status is 'ring'")
+                        
+                        # Turn on the LED
+                        led.on()
+
+                        # Play 'ding dong'
+                        logger("Playing 'Ding Dong'")
+                        playSound(doorbell_sound)
+                        
+                        logger("'Ding Dong' again in 3 seconds")
+                        
+                        feedWatchdog() # Feed Watchdog
+
+                        time.sleep(3)
+
+                        feedWatchdog() # Feed Watchdog
+                        
+                        # Play 'ding dong'
+                        logger("Playing 'Ding Dong'")
+                        playSound(doorbell_sound)
+
+                        feedWatchdog() # Feed Watchdog
+
+                        # Check if call status is still 'ring' after another 5 seconds
+                        logger("Waiting 5 seconds until checking the call status again")
+
+                        feedWatchdog() # Feed Watchdog
+                        
+                        time.sleep(5)
+                        
+                        # Check if call status is still 'ring' after another 5 seconds
+                        logger("Waiting another 5 seconds until checking the call status again")
+
+                        feedWatchdog() # Feed Watchdog
+                        
+                        time.sleep(5)
+                        
+                        # If call status is 'ring'
+                        if callStatus() == 'ring':
                             feedWatchdog() # Feed Watchdog
                             
                             logger("Call status is 'ring'")
-                            
-                            # Turn on the LED
-                            led.on()
 
-                            # Play 'ding dong'
-                            logger("Playing 'Ding Dong'")
-                            playSound(doorbell_sound)
-                            
-                            logger("'Ding Dong' again in 3 seconds")
-                            
-                            feedWatchdog() # Feed Watchdog
-
+                            # Hangup call after 3 seconds
+                            logger("Hanging up call...")
                             time.sleep(3)
-
-                            feedWatchdog() # Feed Watchdog
-                            
-                            # Play 'ding dong'
-                            logger("Playing 'Ding Dong'")
-                            playSound(doorbell_sound)
+                            hangup = callHangup()
 
                             feedWatchdog() # Feed Watchdog
 
-                            # Check if call status is still 'ring' after another 5 seconds
-                            logger("Waiting 5 seconds until checking the call status again")
-
-                            feedWatchdog() # Feed Watchdog
-                            
-                            time.sleep(5)
-                            
-                            # Check if call status is still 'ring' after another 5 seconds
-                            logger("Waiting another 5 seconds until checking the call status again")
-
-                            feedWatchdog() # Feed Watchdog
-                            
-                            time.sleep(5)
-                            
-                            # If call status is 'ring'
-                            if callStatus() == 'ring':
-                                feedWatchdog() # Feed Watchdog
-                                
-                                logger("Call status is 'ring'")
-
-                                # Hangup call after 3 seconds
-                                logger("Hanging up call...")
-                                time.sleep(3)
-                                hangup = callHangup()
-
-                                feedWatchdog() # Feed Watchdog
-
-                                if hangup == True:
-                                    logger("Call has ended")
-                                else:
-                                    logger("Error ending call")
-
-                            # If call status is no longer 'ring'
+                            if hangup == True:
+                                logger("Call has ended")
                             else:
-                                feedWatchdog() # Feed Watchdog
-                                
-                                logger("Call status is no longer 'ring'")
+                                logger("Error ending call")
+
+                        # If call status is no longer 'ring'
+                        else:
+                            feedWatchdog() # Feed Watchdog
                             
-                            # Turn off the LED
-                            led.off()
+                            logger("Call status is no longer 'ring'")
+                        
+                        # Turn off the LED
+                        led.off()
 
 
                     # Core 1 task - Runs on a new core
                     def core1_task():
-                        while True:
-                            logger("Running on Core 1 ****")
+                        logger("Running on Core 1 ****")
 
-                            feedWatchdog() # Feed Watchdog
+                        feedWatchdog() # Feed Watchdog
 
-                            logger("Getting an image capture...")
-                            ImageCapture = imageCapture()           # Get an image capture in base64 encoded format
+                        logger("Getting an image capture...")
+                        ImageCapture = imageCapture()           # Get an image capture in base64 encoded format
 
-                            feedWatchdog() # Feed Watchdog
+                        feedWatchdog() # Feed Watchdog
 
-                            logger("Image capture (Base64):")
-                            logger(ImageCapture)
+                        #logger("Image capture (Base64):")
+                        #logger(ImageCapture)
 
-                            feedWatchdog() # Feed Watchdog
-                            
-                            logger("Sending Pushover message...")
-                            logger(sendPushoverMessage(pushover_message, ImageCapture))    # Send a Pushover message
+                        feedWatchdog() # Feed Watchdog
+                        
+                        logger("Sending Pushover message...")
+                        sendPushoverMessage(pushover_message, ImageCapture)    # Send a Pushover message
 
-                            time.sleep(10)
+                        time.sleep(10)
 
 
                     # Start a new thread on Core 1 and run tasks
