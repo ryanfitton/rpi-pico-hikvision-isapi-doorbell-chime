@@ -56,7 +56,7 @@ api_base_intercom="/ISAPI/VideoIntercom/"           #Intercom URL Base for Doorb
 api_base_streaming="/ISAPI/Streaming/"              #Intercom URL Base for Doorbell API
 
 #Pushover Message API Configuration
-use_pushover=false                                  #Enable/Disable Pushover functionality
+use_pushover=False                                  #Enable/Disable Pushover functionality
 pushover_token=""                                   #The Pushover APP token - Register on https://pushover.net/ to generate a token
 pushover_user=""                                    #The Pushover APP user or group key - Configure this on https://pushover.net/
 pushover_host="api.pushover.net"                    #The hostname
@@ -650,9 +650,9 @@ def sendPushoverMessage(message, attachment_base64 = false, attachment_type = 'i
  payload = {
     "token": pushover_token,
     "user": pushover_user,
-    "message": message
+    "message": message,
     "attachment_base64": attachment_base64,
-    "attachment_type": "attachment_type
+    "attachment_type": attachment_type
  }
 
  feedWatchdog() # Feed Watchdog
