@@ -7,6 +7,8 @@ Hardware: Raspberry Pi Pico W or Raspberry Pi Pico 2 W
 
 Checks ISAPI API status of Hikvision DS-KV6113-WPE1(B) doorbell every few seconds and plays a sound if doorbell is ringing.
 
+Additional functionality to send a capture of the doorbell to [Pushover](https://pushover.net/).
+
 Tested on MicroPython v1.19.1, you can download and setup MicroPython on the Pi Pico here: https://www.raspberrypi.com/documentation/microcontrollers/micropython.html
 
 Thonny IDE is used to upload the firmware and to copy over the src files. The files from 'src' must be copied into the root directory on the Pi Pico.
