@@ -1,4 +1,5 @@
 # coding: utf-8
+import base64                              #From `lib/base64.py` lib on local file system
 import network                          #Micropython default lib
 import urequests as requests            #Micropython default lib
 import uping as ping                    #Micropython default lib
@@ -14,12 +15,15 @@ import md5                              #From `lib/md5.py` lib on local file sys
 import os                               #Micropython default lib
 import utime
 import ntptime
+import machine                          #Micropython default lib
+from machine import I2S                 #Micropython default lib
 from machine import I2S                 #Micropython default lib
 from machine import WDT                 #Micropython default lib
 #from machine import RTC                #Micropython default lib
 from machine import Pin                 #Micropython default lib
 from machine import WDT                 #Micropython default lib
 import gc                               #Micropython default lib
+import _thread                          #Micropython default lib
 
 
 
@@ -51,7 +55,17 @@ api_username="admin"                                #Doorbell Admin user
 api_password=""                                     #Doorbell Admin user's password
 host=""                                             #The Doorbell - Highly recommended to setup static DHCP mappings for this device on your router
 protocol="http://"                                  #Protocol to be used, usually 'http://'
-api_base="/ISAPI/VideoIntercom/"                    #URL Base for Doorbell API
+api_base_intercom="/ISAPI/VideoIntercom/"           #Intercom URL Base for Doorbell API
+api_base_streaming="/ISAPI/Streaming/"              #Streaming URL Base for Doorbell API
+
+#Pushover Message API Configuration
+use_pushover=False                                  #Enable/Disable Pushover functionality
+pushover_token=""                                   #The Pushover APP token - Register on https://pushover.net/ to generate a token
+pushover_user=""                                    #The Pushover APP user or group key - Configure this on https://pushover.net/
+pushover_host="api.pushover.net"                    #The hostname
+pushover_protocol="https://"                        #Protocol to be used, usually 'https://'
+pushover_api_base_message="/1/messages.json"        #URL Base for messages API
+pushover_message="Someone is at your door!"         #Message for the doorbell message
 
 #WAV Audio File Configuration
 #8000Hz, 16-Bit PCM
@@ -294,7 +308,7 @@ def callStatus():
  feedWatchdog() # Feed Watchdog
 
  # Construct API url
- url = protocol + host + api_base + "callStatus?format=json"
+ url = protocol + host + api_base_intercom + "callStatus?format=json"
 
  #Set the HTTP method
  method = 'GET'
@@ -411,7 +425,7 @@ def callHangup():
  feedWatchdog() # Feed Watchdog
 
  # Construct API url
- url = protocol + host + api_base + "callSignal?format=json"
+ url = protocol + host + api_base_intercom + "callSignal?format=json"
 
  #Set the HTTP method
  method = 'PUT' # Using `PUT` instead of `POST`
@@ -499,12 +513,185 @@ def callHangup():
     data = _body.json()
 
     feedWatchdog() # Feed Watchdog
+
+
+# Get image capture
+# =====================================================
+def imageCapture():
+ feedWatchdog() # Feed Watchdog
+
+ # Construct API url
+ url = protocol + host + api_base_streaming + "channels/101/picture"
+
+ #Set the HTTP method
+ method = 'GET'
  
- # Return basedon status
- if data["statusString"] == "OK": 
-    return True
+ # Headers
+ headers = {
+    'Content-Type': 'text/plain'
+ }
+
+ # Setup a payload
+ #payload = json.dumps({"data": "test authentication"})
+ payload = '' #EMPTY - no payload required
+
+ feedWatchdog() # Feed Watchdog
+
+ #Generate logins/authorisations for `basic` or `digest` auth
+ basic_credentials = gen_basic_credential(api_username, api_password)
+ auth = DigestAuthorization(api_username, api_password)
+
+ feedWatchdog() # Feed Watchdog
+
+ #Make the first request - Identify if `basic` or `digest` auth
+ r1st = requests.request(method, url, headers=headers, data=payload)
+
+ feedWatchdog() # Feed Watchdog
+
+ #Store details from the request to variables
+ _body = r1st.text
+ _status = r1st.status_code
+ _headers = r1st.headers
+
+ #Debugging
+ #logger([_status, _headers, _body])
+
+ feedWatchdog() # Feed Watchdog
+ 
+ # Check the returned status from the request and provide authorisations
+ if _status in [401, 407]:
+    server_mode = {
+        401: {'challenge': 'WWW-Authenticate',
+            'credentials': 'authorization'},
+        407: {'challenge': 'proxy-authenticate',
+            'credentials': 'proxy-authorization'}
+    }
+    
+    feedWatchdog() # Feed Watchdog
+    
+    #Get the challenge item 'WWW-Authenticate' or 'proxy-authenticate' header
+    foundServer_mode = server_mode[_status]['challenge']
+    challenge = _headers[foundServer_mode]
+
+    feedWatchdog() # Feed Watchdog
+    
+    #Parse to return if 'Basic' or 'Digest'
+    scheme = parse_scheme(challenge)
+    
+    credentials = 'no-scheme' #Default 'credentials' value
+
+    # If `basic` authorisation
+    if scheme == 'Basic':
+        credentials = basic_credentials
+
+    # If `digest` authorisation
+    if scheme == 'Digest':
+        credentials = auth.authorize(method, url, challenge, payload) #from `auth = DigestAuthorization`
+
+    feedWatchdog() # Feed Watchdog
+    
+    # Set the `credentials` headers
+    headers[server_mode[_status]['credentials']] = credentials
+    
+    #Debugging
+    #logger(credentials)
+
+    feedWatchdog() # Feed Watchdog
+
+    #Make the second request
+    r2nd = requests.request(method, url, headers=headers, data=payload)
+    
+    #Store details from the request to variables
+    _body = r2nd
+    _status = r2nd.status_code
+    _headers = r2nd.headers
+
+    feedWatchdog() # Feed Watchdog
+
+    #Debugging
+    #logger([r2nd.status_code, r2nd.headers, r2nd.text])
+
+    #logger("Status code:")
+    #logger("==============\n")
+    #logger(_status)
+    
+    #logger("Headers:")
+    #logger("==============\n")
+    #logger(_headers)
+    
+    #logger("Response body (Content):")
+    #logger("==============\n")
+    #logger(_body.content)
+
+
+    # Use `data` as the variable to return
+    # Return the base64 encoded image
+    data = base64.b64encode(_body.content).decode('utf-8')
+
+    feedWatchdog() # Feed Watchdog
+
+ # Return the image embedded in the `data` variable
+ return data
+
+
+# Send Pushover message
+# =====================================================
+def sendPushoverMessage(message, attachment_base64=False, attachment_type='image/jpeg'):
+ feedWatchdog()  # Feed Watchdog
+
+ # Construct API url
+ url = pushover_protocol + pushover_host + pushover_api_base_message
+
+ # Decode base64 to bytes
+ if attachment_base64:
+    image_bytes = ubinascii.a2b_base64(attachment_base64)
  else:
-    return False
+    image_bytes = b''
+
+ # Prepare multipart/form-data
+ boundary = '----WebKitFormBoundary{}'.format(machine.unique_id().hex())
+ headers = {
+    'Content-Type': f'multipart/form-data; boundary={boundary}'
+ }
+
+ # Build multipart body
+ body = (
+    f'--{boundary}\r\n'
+    f'Content-Disposition: form-data; name="token"\r\n\r\n{pushover_token}\r\n'
+    f'--{boundary}\r\n'
+    f'Content-Disposition: form-data; name="user"\r\n\r\n{pushover_user}\r\n'
+    f'--{boundary}\r\n'
+    f'Content-Disposition: form-data; name="message"\r\n\r\n{message}\r\n'
+ ).encode('utf-8')
+
+ if image_bytes:
+    body += (
+        f'--{boundary}\r\n'
+        f'Content-Disposition: form-data; name="attachment"; filename="image.jpg"\r\n'
+        f'Content-Type: {attachment_type}\r\n\r\n'
+    ).encode('utf-8') + image_bytes + f'\r\n'.encode('utf-8')
+
+ body += f'--{boundary}--\r\n'.encode('utf-8')
+
+ # Send the request
+ import urequests as requests
+ response = requests.post(url, headers=headers, data=body)
+ _status = response.status_code
+
+ if _status == 200:
+    data = "Pushover sent."
+ else:
+    data = f"Pushover error: {response.text}"
+
+ return data
+
+ 
+ # Is this still required?
+ # Return basedon status
+ #if data["statusString"] == "OK": 
+ #   return True
+ #else:
+ #   return False
 
 
 # Play Sounds - Pass a WAV filename
@@ -724,71 +911,105 @@ def main():
 
                 #logger("CallStatusDeadline dealine has been reached")
       
-                # If call status is 'ring'
+                # If call status is 'ring' (Ringing - Someone has pushed the doorbell)
                 if callStatus() == 'ring':
-                    feedWatchdog() # Feed Watchdog
-                    
-                    logger("Call status is 'ring'")
-                    
+
                     # Turn on the LED
                     led.on()
 
-                    # Play 'ding dong'
-                    logger("Playing 'Ding Dong'")
-                    playSound(doorbell_sound)
-                    
-                    logger("'Ding Dong' again in 3 seconds")
-                    
-                    feedWatchdog() # Feed Watchdog
+                    # Core 0 task - default
+                    def core0_task():
+                        logger("Running on Core 0 ****")
 
-                    time.sleep(3)
-
-                    feedWatchdog() # Feed Watchdog
-                    
-                    # Play 'ding dong'
-                    logger("Playing 'Ding Dong'")
-                    playSound(doorbell_sound)
-
-                    feedWatchdog() # Feed Watchdog
-
-                    # Check if call status is still 'ring' after another 5 seconds
-                    logger("Waiting 5 seconds until checking the call status again")
-
-                    feedWatchdog() # Feed Watchdog
-                    
-                    time.sleep(5)
-                    
-                    # Check if call status is still 'ring' after another 5 seconds
-                    logger("Waiting another 5 seconds until checking the call status again")
-
-                    feedWatchdog() # Feed Watchdog
-                    
-                    time.sleep(5)
-                    
-                    # If call status is 'ring'
-                    if callStatus() == 'ring':
                         feedWatchdog() # Feed Watchdog
                         
                         logger("Call status is 'ring'")
 
-                        # Hangup call after 3 seconds
-                        logger("Hanging up call...")
-                        time.sleep(3)
-                        hangup = callHangup()
-
+                        # Play 'ding dong'
+                        logger("Playing 'Ding Dong'")
+                        playSound(doorbell_sound)
+                        
+                        logger("'Ding Dong' again in 3 seconds")
+                        
                         feedWatchdog() # Feed Watchdog
 
-                        if hangup == True:
-                            logger("Call has ended")
-                        else:
-                            logger("Error ending call")
+                        time.sleep(3)
 
-                    # If call status is no longer 'ring'
-                    else:
                         feedWatchdog() # Feed Watchdog
                         
-                        logger("Call status is no longer 'ring'")
-                    
+                        # Play 'ding dong'
+                        logger("Playing 'Ding Dong'")
+                        playSound(doorbell_sound)
+
+                        feedWatchdog() # Feed Watchdog
+
+                        # Check if call status is still 'ring' after another 5 seconds
+                        logger("Waiting 5 seconds until checking the call status again")
+
+                        feedWatchdog() # Feed Watchdog
+                        
+                        time.sleep(5)
+                        
+                        # Check if call status is still 'ring' after another 5 seconds
+                        logger("Waiting another 5 seconds until checking the call status again")
+
+                        feedWatchdog() # Feed Watchdog
+                        
+                        time.sleep(5)
+                        
+                        # If call status is 'ring'
+                        if callStatus() == 'ring':
+                            feedWatchdog() # Feed Watchdog
+                            
+                            logger("Call status is 'ring'")
+
+                            # Hangup call after 3 seconds
+                            logger("Hanging up call...")
+                            time.sleep(3)
+                            hangup = callHangup()
+
+                            feedWatchdog() # Feed Watchdog
+
+                            if hangup == True:
+                                logger("Call has ended")
+                            else:
+                                logger("Error ending call")
+
+                        # If call status is no longer 'ring'
+                        else:
+                            feedWatchdog() # Feed Watchdog
+                            
+                            logger("Call status is no longer 'ring'")
+
+
+                    # Core 1 task - Runs on a new core
+                    def core1_task():
+                        logger("Running on Core 1 ****")
+
+                        feedWatchdog() # Feed Watchdog
+
+                        logger("Getting an image capture...")
+                        ImageCapture = imageCapture()           # Get an image capture in base64 encoded format
+
+                        feedWatchdog() # Feed Watchdog
+
+                        #logger("Image capture (Base64):")
+                        #logger(ImageCapture)
+
+                        feedWatchdog() # Feed Watchdog
+                        
+                        logger("Sending Pushover message...")
+                        sendPushoverMessage(pushover_message, ImageCapture)    # Send a Pushover message
+
+                        time.sleep(10)
+
+
+                    # Start a new thread on Core 1 and run tasks
+                    _thread.start_new_thread(core1_task, ())
+
+                    # Core 0 - Run usual tasks
+                    core0_task()
+
                     # Turn off the LED
                     led.off()
 
