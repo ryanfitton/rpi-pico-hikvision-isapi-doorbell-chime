@@ -1,5 +1,5 @@
 # coding: utf-8
-import base64                           #From `lib/base64.py` lib on local file system
+import base64                              #From `lib/base64.py` lib on local file system
 import network                          #Micropython default lib
 import urequests as requests            #Micropython default lib
 import uping as ping                    #Micropython default lib
@@ -15,6 +15,8 @@ import md5                              #From `lib/md5.py` lib on local file sys
 import os                               #Micropython default lib
 import utime
 import ntptime
+import machine                          #Micropython default lib
+from machine import I2S                 #Micropython default lib
 from machine import I2S                 #Micropython default lib
 from machine import WDT                 #Micropython default lib
 #from machine import RTC                #Micropython default lib
@@ -54,7 +56,7 @@ api_password=""                                     #Doorbell Admin user's passw
 host=""                                             #The Doorbell - Highly recommended to setup static DHCP mappings for this device on your router
 protocol="http://"                                  #Protocol to be used, usually 'http://'
 api_base_intercom="/ISAPI/VideoIntercom/"           #Intercom URL Base for Doorbell API
-api_base_streaming="/ISAPI/Streaming/"              #Intercom URL Base for Doorbell API
+api_base_streaming="/ISAPI/Streaming/"              #Streaming URL Base for Doorbell API
 
 #Pushover Message API Configuration
 use_pushover=False                                  #Enable/Disable Pushover functionality
@@ -621,6 +623,7 @@ def imageCapture():
     #logger("==============\n")
     #logger(_body.content)
 
+
     # Use `data` as the variable to return
     # Return the base64 encoded image
     data = base64.b64encode(_body.content).decode('utf-8')
@@ -633,48 +636,52 @@ def imageCapture():
 
 # Send Pushover message
 # =====================================================
-def sendPushoverMessage(message, attachment_base64 = False, attachment_type = 'image/jpeg'):
- feedWatchdog() # Feed Watchdog
+def sendPushoverMessage(message, attachment_base64=False, attachment_type='image/jpeg'):
+ feedWatchdog()  # Feed Watchdog
 
  # Construct API url
  url = pushover_protocol + pushover_host + pushover_api_base_message
 
- # Set the HTTP method
- method = 'POST'
-    
- # Headers
+ # Decode base64 to bytes
+ if attachment_base64:
+    image_bytes = ubinascii.a2b_base64(attachment_base64)
+ else:
+    image_bytes = b''
+
+ # Prepare multipart/form-data
+ boundary = '----WebKitFormBoundary{}'.format(machine.unique_id().hex())
  headers = {
-    'Content-Type': 'application/x-www-form-urlencoded'
+    'Content-Type': f'multipart/form-data; boundary={boundary}'
  }
 
- # Setup a payload
- payload = {
-    "token": pushover_token,
-    "user": pushover_user,
-    "message": message,
-    "attachment_base64": attachment_base64,
-    "attachment_type": attachment_type
- }
+ # Build multipart body
+ body = (
+    f'--{boundary}\r\n'
+    f'Content-Disposition: form-data; name="token"\r\n\r\n{pushover_token}\r\n'
+    f'--{boundary}\r\n'
+    f'Content-Disposition: form-data; name="user"\r\n\r\n{pushover_user}\r\n'
+    f'--{boundary}\r\n'
+    f'Content-Disposition: form-data; name="message"\r\n\r\n{message}\r\n'
+ ).encode('utf-8')
 
- # Convert payload dict to URL-encoded string
- payload_str = "&".join(
-    "{}={}".format(k, str(v)) for k, v in payload.items() if v is not False
- )
+ if image_bytes:
+    body += (
+        f'--{boundary}\r\n'
+        f'Content-Disposition: form-data; name="attachment"; filename="image.jpg"\r\n'
+        f'Content-Type: {attachment_type}\r\n\r\n'
+    ).encode('utf-8') + image_bytes + f'\r\n'.encode('utf-8')
 
- feedWatchdog() # Feed Watchdog
+ body += f'--{boundary}--\r\n'.encode('utf-8')
 
- # Make the first request - Push to the Pushover API
- r1st = requests.request(method, url, headers=headers, data=payload_str)
-
- feedWatchdog() # Feed Watchdog
-
- # Store details from the request to variables
- _status = r1st.status_code
+ # Send the request
+ import urequests as requests
+ response = requests.post(url, headers=headers, data=body)
+ _status = response.status_code
 
  if _status == 200:
     data = "Pushover sent."
  else:
-    data = "Pushover error."
+    data = f"Pushover error: {response.text}"
 
  return data
 
@@ -907,6 +914,9 @@ def main():
                 # If call status is 'ring' (Ringing - Someone has pushed the doorbell)
                 if callStatus() == 'ring':
 
+                    # Turn on the LED
+                    led.on()
+
                     # Core 0 task - default
                     def core0_task():
                         logger("Running on Core 0 ****")
@@ -914,9 +924,6 @@ def main():
                         feedWatchdog() # Feed Watchdog
                         
                         logger("Call status is 'ring'")
-                        
-                        # Turn on the LED
-                        led.on()
 
                         # Play 'ding dong'
                         logger("Playing 'Ding Dong'")
@@ -973,9 +980,6 @@ def main():
                             feedWatchdog() # Feed Watchdog
                             
                             logger("Call status is no longer 'ring'")
-                        
-                        # Turn off the LED
-                        led.off()
 
 
                     # Core 1 task - Runs on a new core
@@ -1005,6 +1009,9 @@ def main():
 
                     # Core 0 - Run usual tasks
                     core0_task()
+
+                    # Turn off the LED
+                    led.off()
 
                 
                 # Update the ticks with current ticks
