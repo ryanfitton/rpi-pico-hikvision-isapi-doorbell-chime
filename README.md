@@ -7,6 +7,8 @@ Hardware: Raspberry Pi Pico W or Raspberry Pi Pico 2 W
 
 Checks ISAPI API status of Hikvision DS-KV6113-WPE1(B) doorbell every few seconds and plays a sound if doorbell is ringing.
 
+Note; Requires firmware version at least [V2.2.53_230918]( https://www.hikvisioneurope.com/eu/portal/?dir=portal/Technical%20Materials/07%20%20Video%20Intercom/00%20%20Product%20Firmware/01%20Door%20Station%20%28KD%20KV%20KB%29/KV%20Series/KV8413%20KV8213%20KV8113%20KV6113%20KV6103%20%28B%20Version%29/V2.2.53_Build%20230918%20Protocol%202.0) to add the Capture API endpoint in ISAPI for Pushover functionality.
+
 Additional functionality to send a capture of the doorbell to [Pushover](https://pushover.net/).
 
 Tested on MicroPython v1.19.1, you can download and setup MicroPython on the Pi Pico here: https://www.raspberrypi.com/documentation/microcontrollers/micropython.html
@@ -44,7 +46,7 @@ To get started edit the config in `src/main.py` for the following fields:
 
 ## Parts:
 
-* RPI Pico Wireless with Headers
+* RPI Pico version 1 or 2 Wireless with Headers
 * Room Sensor Enclosure - Size 2 (with Pi HAT / 3A+ Mounts) - Vented (https://thepihut.com/products/room-sensor-enclosure-size-2-with-pi-3a-mounts?variant=39957973008579)
 * Premium Female/Female Jumper Wires - 20 x 3" (75mm) (https://thepihut.com/products/premium-female-female-jumper-wires-20-x-3-75mm?variant=27739698577)
 * Adafruit I2S 3W Class D Amplifier Breakout - MAX98357A (https://thepihut.com/products/adafruit-i2s-3w-class-d-amplifier-breakout-max98357a?variant=27740275281)
