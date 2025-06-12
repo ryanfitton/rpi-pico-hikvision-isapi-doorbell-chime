@@ -21,7 +21,9 @@ Download up to date firmware here:
 
 This Python code is run and used to check the ring status of the Hikvision DS-KV6113-WPE1(B) doorbell when used in stand-alone mode. If this ring status is `ring` then the doorbell sound will be played twice. There is then a timeout until the ring status check is performed again.
 
-View my blog post for this project: https://ryanfitton.co.uk/blog/diy-doorbell-chime-for-hikvision-isapi-with-a-raspberry-pi-pico/
+View my blog post for this project: 
+* [https://ryanfitton.co.uk/blog/diy-doorbell-chime-for-hikvision-isapi-with-a-raspberry-pi-pico/](https://ryanfitton.co.uk/blog/diy-doorbell-chime-for-hikvision-isapi-with-a-raspberry-pi-pico/) - Initial post in 2023
+* [https://ryanfitton.co.uk/blog/update-diy-doorbell-chime-for-hikvision-isapi-with-a-raspberry-pi-pico/](https://ryanfitton.co.uk/blog/update-diy-doorbell-chime-for-hikvision-isapi-with-a-raspberry-pi-pico/) - Adding Pushover functionality, 2025.
 
 
 ## Getting started:
