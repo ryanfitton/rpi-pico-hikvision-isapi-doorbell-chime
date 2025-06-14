@@ -82,4 +82,7 @@ curl -i --digest -u admin:YOUR_PASSWORD "http://YOUR_IP/ISAPI/Streaming/channels
 ```
 
 ## Demo
+Watch the video here: [[Watch the video](https://youtu.be/t8QvcgmwK-E)](https://youtu.be/t8QvcgmwK-E), or click the image below:
+[![Watch the video](https://i3.ytimg.com/vi/t8QvcgmwK-E/maxresdefault.jpg)](https://youtu.be/t8QvcgmwK-E)
+
 ![Front end rendering](images/pushover-screenshot.png)
