@@ -1,7 +1,8 @@
 # RPI Pico Doorbell Chime
 
-OS/Interpreter: MicroPython
-Hardware: Raspberry Pi Pico W or Raspberry Pi Pico 2 W
+* Version `1.1.1`
+* OS/Interpreter: MicroPython
+* Hardware: Raspberry Pi Pico W or Raspberry Pi Pico 2 W
 
 ## Description:
 

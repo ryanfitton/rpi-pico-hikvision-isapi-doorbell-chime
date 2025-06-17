@@ -998,8 +998,9 @@ def main():
 
                         feedWatchdog() # Feed Watchdog
                         
-                        logger("Sending Pushover message...")
-                        sendPushoverMessage(pushover_message, ImageCapture)    # Send a Pushover message
+                        if use_pushover is not False:
+                            logger("Sending Pushover message...")
+                            sendPushoverMessage(pushover_message, ImageCapture)    # Send a Pushover message
 
                         time.sleep(10)
 
